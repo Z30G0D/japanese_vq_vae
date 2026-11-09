@@ -60,6 +60,32 @@ def test_subsampling_is_deterministic(fake_k49):
     b = load_k49(fake_k49, split="train", max_per_class=2, seed=5)
     assert np.array_equal(a.images, b.images)
 
+    c = load_k49(fake_k49, split="train", max_per_class=2, seed=6)
+    # Class 0 has 4 candidates, so two different seeds should pick differently.
+    assert not np.array_equal(a.images, c.images)
+
+
+def test_subsampling_keeps_images_aligned_with_labels(fake_k49):
+    full = load_k49(fake_k49, split="train")
+    capped = load_k49(fake_k49, split="train", max_per_class=2, seed=5)
+
+    for image, class_id in zip(capped.images, capped.class_ids, strict=True):
+        matches = [
+            i for i, other in enumerate(full.images) if np.array_equal(image, other)
+        ]
+        assert matches, "capped image is not present in the full set"
+        assert full.class_ids[matches[0]] == class_id
+
+
+def test_non_contiguous_classmap_is_rejected(tmp_path, fake_k49):
+    (fake_k49 / "k49_classmap.csv").write_text(
+        "index,codepoint,char\n0,U+3042,あ\n1,U+3044,い\n3,U+3048,え\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="contiguous"):
+        load_k49(fake_k49, split="train")
+
 
 def test_missing_files_give_an_actionable_error(tmp_path):
     with pytest.raises(FileNotFoundError, match="fetch-k49"):

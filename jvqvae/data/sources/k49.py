@@ -29,7 +29,12 @@ K49_FILES = {
 
 
 def download_k49(dest_dir: str | Path) -> Path:
-    """Download any K49 files not already present. Returns the directory."""
+    """Download any K49 files not already present. Returns the directory.
+
+    Each file lands in a `.part` sibling and is renamed only once the
+    transfer completes, so an interrupted download cannot leave a truncated
+    file that later runs mistake for a finished one.
+    """
     dest = Path(dest_dir)
     dest.mkdir(parents=True, exist_ok=True)
     for name, url in K49_FILES.items():
@@ -37,14 +42,26 @@ def download_k49(dest_dir: str | Path) -> Path:
         if target.exists():
             print(f"already have {name}")
             continue
+
         print(f"downloading {name} from {url}")
-        urllib.request.urlretrieve(url, target)
+        partial = target.with_suffix(target.suffix + ".part")
+        try:
+            urllib.request.urlretrieve(url, partial)
+            partial.replace(target)
+        finally:
+            partial.unlink(missing_ok=True)
     return dest
 
 
 def _load_classes(path: Path) -> list[str]:
     with path.open(encoding="utf-8", newline="") as handle:
         rows = sorted(csv.DictReader(handle), key=lambda row: int(row["index"]))
+
+    indices = [int(row["index"]) for row in rows]
+    if indices != list(range(len(rows))):
+        raise ValueError(
+            f"{path}: class indices must be contiguous from 0, got {indices}"
+        )
     return [row["char"] for row in rows]
 
 
