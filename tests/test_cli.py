@@ -13,7 +13,10 @@ def test_help_exits_cleanly(capsys):
     with pytest.raises(SystemExit) as excinfo:
         main(["--help"])
     assert excinfo.value.code == 0
-    assert "fetch-k49" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "fetch-k49" in out
+    assert "train-prior" in out
+    assert "sample" in out
 
 
 def test_ingest_reports_the_configured_defaults(monkeypatch, tmp_path):
@@ -206,3 +209,188 @@ def test_extract_codes_rejects_an_unknown_split(
                 str(tmp_path / "codes.npz"),
             ]
         )
+
+
+def test_train_prior_help_lists_its_flags(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        main(["train-prior", "--help"])
+    out = capsys.readouterr().out
+
+    assert excinfo.value.code == 0
+    for flag in ("--config", "--device", "--max-steps", "--output-root", "--codes"):
+        assert flag in out
+
+
+def test_sample_help_lists_its_flags(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        main(["sample", "--help"])
+    out = capsys.readouterr().out
+
+    assert excinfo.value.code == 0
+    for flag in (
+        "--config",
+        "--vqvae",
+        "--prior",
+        "--class",
+        "--n",
+        "--guidance",
+        "--sweep-class",
+    ):
+        assert flag in out
+
+
+def test_train_prior_runs_end_to_end(monkeypatch, tmp_path, tiny_config):
+    import numpy as np
+
+    from jvqvae.codes import CodeData, save_codes
+
+    codes = CodeData(
+        codes=np.zeros((8, 4, 4), dtype=np.int64),
+        class_ids=np.array([0, 1, 2, 0, 1, 2, 0, 1], dtype=np.int64),
+        classes=["あ", "い", "う"],
+        num_codes=tiny_config.model.num_codes,
+    )
+    save_codes(codes, tmp_path / "results" / "tiny" / "codes_train.npz")
+    monkeypatch.setattr("jvqvae.cli.load_run_config", lambda path: tiny_config)
+
+    code = main(
+        [
+            "train-prior",
+            "--config",
+            "unused.yaml",
+            "--device",
+            "cpu",
+            "--max-steps",
+            "2",
+            "--output-root",
+            str(tmp_path),
+        ]
+    )
+
+    assert code == 0
+    assert (tmp_path / "checkpoints" / "tiny" / "prior_last.pt").exists()
+    assert (tmp_path / "results" / "tiny" / "prior_run.json").exists()
+
+
+def test_sample_runs_end_to_end(monkeypatch, tmp_path, tiny_config):
+    from jvqvae.models.prior import Prior, save_prior_checkpoint
+    from jvqvae.models.vqvae import VQVAE, save_checkpoint
+
+    vqvae_path = tmp_path / "vqvae.pt"
+    prior_path = tmp_path / "prior.pt"
+    save_checkpoint(
+        VQVAE(tiny_config.model),
+        vqvae_path,
+        config=tiny_config.model,
+        epoch=0,
+        metrics={},
+    )
+    save_prior_checkpoint(
+        Prior(
+            tiny_config.prior,
+            num_codes=tiny_config.model.num_codes,
+            num_classes=3,
+            latent_size=tiny_config.latent_size,
+        ),
+        prior_path,
+        config=tiny_config.prior,
+        num_codes=tiny_config.model.num_codes,
+        num_classes=3,
+        latent_size=tiny_config.latent_size,
+        epoch=0,
+        metrics={},
+    )
+    monkeypatch.setattr("jvqvae.cli.load_run_config", lambda path: tiny_config)
+
+    code = main(
+        [
+            "sample",
+            "--config",
+            "unused.yaml",
+            "--vqvae",
+            str(vqvae_path),
+            "--prior",
+            str(prior_path),
+            "--output-root",
+            str(tmp_path),
+            "--class",
+            "0",
+            "--n",
+            "2",
+            "--device",
+            "cpu",
+        ]
+    )
+
+    assert code == 0
+    assert (tmp_path / "results" / "tiny" / "samples.png").exists()
+
+
+def test_train_prior_rejects_a_missing_codes_file(monkeypatch, tmp_path, tiny_config):
+    monkeypatch.setattr("jvqvae.cli.load_run_config", lambda path: tiny_config)
+    missing = tmp_path / "results" / "tiny" / "codes_train.npz"
+
+    with pytest.raises(SystemExit, match="extract-codes") as excinfo:
+        main(
+            [
+                "train-prior",
+                "--config",
+                "unused.yaml",
+                "--output-root",
+                str(tmp_path),
+                "--device",
+                "cpu",
+            ]
+        )
+
+    assert str(missing) in str(excinfo.value)
+
+
+def test_sample_rejects_a_missing_vqvae_checkpoint(monkeypatch, tmp_path, tiny_config):
+    monkeypatch.setattr("jvqvae.cli.load_run_config", lambda path: tiny_config)
+    missing = tmp_path / "checkpoints" / "tiny" / "vqvae_best.pt"
+
+    with pytest.raises(SystemExit, match="train-vqvae") as excinfo:
+        main(
+            [
+                "sample",
+                "--config",
+                "unused.yaml",
+                "--output-root",
+                str(tmp_path),
+                "--device",
+                "cpu",
+            ]
+        )
+
+    assert str(missing) in str(excinfo.value)
+
+
+def test_sample_rejects_a_missing_prior_checkpoint(monkeypatch, tmp_path, tiny_config):
+    from jvqvae.models.vqvae import VQVAE, save_checkpoint
+
+    vqvae_path = tmp_path / "checkpoints" / "tiny" / "vqvae_best.pt"
+    save_checkpoint(
+        VQVAE(tiny_config.model),
+        vqvae_path,
+        config=tiny_config.model,
+        epoch=0,
+        metrics={},
+    )
+    monkeypatch.setattr("jvqvae.cli.load_run_config", lambda path: tiny_config)
+    missing = tmp_path / "checkpoints" / "tiny" / "prior_best.pt"
+
+    with pytest.raises(SystemExit, match="train-prior") as excinfo:
+        main(
+            [
+                "sample",
+                "--config",
+                "unused.yaml",
+                "--output-root",
+                str(tmp_path),
+                "--device",
+                "cpu",
+            ]
+        )
+
+    assert str(missing) in str(excinfo.value)
