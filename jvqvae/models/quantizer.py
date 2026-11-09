@@ -49,7 +49,11 @@ class VectorQuantizerEMA(nn.Module):
 
         codebook = torch.randn(num_codes, embedding_dim)
         self.register_buffer("codebook", codebook)
-        self.register_buffer("ema_cluster_size", torch.zeros(num_codes))
+        # Ones, not zeros: the codebook is recomputed as ema_weight / n_i, so
+        # n_i = 0 on an unused code inflates that row by ~1/eps on the first
+        # training step and locks it out until a restart. Ones keep unused
+        # codes at their init, matching the restart path and place_codebook.
+        self.register_buffer("ema_cluster_size", torch.ones(num_codes))
         self.register_buffer("ema_weight", codebook.clone())
         self.register_buffer(
             "steps_since_used", torch.zeros(num_codes, dtype=torch.long)
@@ -83,6 +87,8 @@ class VectorQuantizerEMA(nn.Module):
         )
         indices = distances.argmin(dim=1)
         encodings = F.one_hot(indices, self.num_codes).to(flat.dtype)
+        # Advanced indexing copies, so this snapshot stays at the pre-update
+        # table even though `_update` then overwrites `self.codebook` in place.
         quantized_flat = self.codebook[indices]
 
         num_restarted = self._update(flat, encodings) if self.training else 0
@@ -145,7 +151,12 @@ class VectorQuantizerEMA(nn.Module):
         if dead.numel() == 0:
             return 0
 
-        picks = torch.randint(0, flat.shape[0], (dead.numel(),), device=flat.device)
+        n = flat.shape[0]
+        count = int(dead.numel())
+        if count <= n:
+            picks = torch.randperm(n, device=flat.device)[:count]
+        else:
+            picks = torch.randint(0, n, (count,), device=flat.device)
         replacements = flat[picks]
         self.codebook[dead] = replacements
         # The EMA state has to move with the code. Resetting only the codebook

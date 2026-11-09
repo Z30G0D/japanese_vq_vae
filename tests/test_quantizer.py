@@ -138,6 +138,22 @@ def test_the_codebook_does_not_move_in_eval_mode():
     assert torch.equal(quantizer.codebook, before)
 
 
+def test_the_first_training_step_does_not_inflate_unused_codes():
+    """ema_cluster_size must start at 1, matching ema_weight.
+
+    Starting at 0 divides unused rows by ~eps and inflates them by ~1/eps,
+    locking them out until a restart. The real 512-code config inflates
+    unused rows by about 1e5x; this small fixture shows the same failure.
+    """
+    quantizer = make(num_codes=8, dim=4, decay=0.99, dead_code_steps=50).train()
+    before = quantizer.codebook.norm(dim=1).max().item()
+
+    quantizer(torch.randn(4, 4, 2, 2) * 0.5)
+
+    after = quantizer.codebook.norm(dim=1).max().item()
+    assert after < 10 * before
+
+
 def test_unused_codes_are_restarted_from_live_encoder_outputs():
     quantizer = make(num_codes=4, dim=2, dead_code_steps=2).train()
     # Put code 3 far away so nothing ever selects it.
