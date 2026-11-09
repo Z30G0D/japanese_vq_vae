@@ -29,17 +29,39 @@ class DataConfig:
     split: SplitConfig = field(default_factory=SplitConfig)
 
 
-def _build(cls: type, raw: dict[str, Any]) -> Any:
+def _build(cls: type, raw: Any, *, where: str) -> Any:
+    if not isinstance(raw, dict):
+        raise ValueError(
+            f"{where}: expected a mapping for {cls.__name__}, "
+            f"got {type(raw).__name__}"
+        )
+
     known = {f.name for f in fields(cls)}
     unknown = set(raw) - known
     if unknown:
         raise ValueError(
-            f"unknown key(s) for {cls.__name__}: {', '.join(sorted(unknown))}"
+            f"{where}: unknown key(s) for {cls.__name__}: "
+            f"{', '.join(sorted(unknown))}"
         )
-    return cls(**raw)
+
+    try:
+        return cls(**raw)
+    except TypeError as error:
+        raise ValueError(f"{where}: invalid {cls.__name__}: {error}") from error
 
 
 def load_data_config(path: str | Path) -> DataConfig:
-    raw = yaml.safe_load(Path(path).read_text()) or {}
-    raw["split"] = _build(SplitConfig, raw.get("split") or {})
-    return _build(DataConfig, raw)
+    path = Path(path)
+    raw = yaml.safe_load(path.read_text())
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise ValueError(
+            f"{path}: expected a mapping at the top level, got {type(raw).__name__}"
+        )
+
+    split_raw = raw.get("split")
+    raw["split"] = _build(
+        SplitConfig, {} if split_raw is None else split_raw, where=f"{path}:split"
+    )
+    return _build(DataConfig, raw, where=str(path))
