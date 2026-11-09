@@ -216,4 +216,6 @@ def test_the_log_callback_sees_every_epoch(tiny_config, splits, tmp_path):
     train_vqvae(config, splits, device=CPU, output_root=tmp_path, log=lines.append)
 
     assert len(lines) == 3
+    assert "train recon" in lines[0]
+    assert "val recon" in lines[0]
     assert "perplexity" in lines[0]

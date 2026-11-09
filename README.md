@@ -82,14 +82,17 @@ uv run jvqvae train-vqvae --config configs/k49_dev.yaml
 ```
 
 Add `--max-steps 20` for a smoke run, or `--device cpu` to override the automatic
-MPS/CUDA/CPU choice. Each run writes two checkpoints to
-`checkpoints/<name>/` (best by validation loss, and last), a reconstruction figure and a
-JSON record of every epoch to `results/<name>/`.
+MPS/CUDA/CPU choice. `configs/k49_dev.yaml` subsamples 500 images per class so a
+development run stays fast; `configs/etl4.yaml` is the real thing. Each run writes two
+checkpoints to `checkpoints/<name>/` (best by validation reconstruction, and last), a
+reconstruction figure and a JSON record of every epoch to `results/<name>/`.
 
-The per-epoch line reports codebook perplexity and how many of the 512 codes are in use.
-Watch it: codebook collapse, where nearly all the codes go unused, is the expected
-failure mode at this data scale. Codes that stay unused are automatically restarted from
-live encoder outputs, and the count of restarts is logged.
+The per-epoch line reports train pixel reconstruction, the commitment term, validation
+reconstruction (the number that picks the best checkpoint), codebook perplexity, and
+how many of the 512 codes appeared at least once in the epoch. Watch the last of those:
+codebook collapse, where nearly all the codes go unused, is the expected failure mode
+at this data scale. Codes that stay unused are automatically restarted from live
+encoder outputs, and the count of restarts is logged.
 
 Once the VQ-VAE is trained, extract the discrete codes the prior will learn from:
 

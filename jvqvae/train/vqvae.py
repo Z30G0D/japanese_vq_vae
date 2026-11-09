@@ -101,7 +101,8 @@ def train_vqvae(
     for epoch in range(config.train.epochs):
         model.train()
         sums = {"loss": 0.0, "recon": 0.0, "commit": 0.0, "perplexity": 0.0}
-        active, restarted, batches = 0, 0, 0
+        used = torch.zeros(config.model.num_codes, dtype=torch.bool, device=device)
+        restarted, batches = 0, 0
 
         for images, _ in train_loader:
             if config.train.max_steps is not None and steps >= config.train.max_steps:
@@ -119,7 +120,7 @@ def train_vqvae(
             sums["recon"] += out.reconstruction_loss.item()
             sums["commit"] += out.commitment_loss.item()
             sums["perplexity"] += out.perplexity.item()
-            active = max(active, out.num_active)
+            used.scatter_(0, out.codes.reshape(-1), True)
             restarted += out.num_restarted
 
         if batches == 0:
@@ -132,14 +133,19 @@ def train_vqvae(
             train_commitment=sums["commit"] / batches,
             val_loss=_validate(model, val_loader, device) if val_loader else None,
             perplexity=sums["perplexity"] / batches,
-            num_active=active,
+            num_active=int(used.sum()),
             num_restarted=restarted,
         )
         history.append(metrics)
 
         log(
-            f"epoch {epoch}: train {metrics.train_loss:.4f}"
-            + (f" val {metrics.val_loss:.4f}" if metrics.val_loss is not None else "")
+            f"epoch {epoch}: train recon {metrics.train_reconstruction:.4f}"
+            f" commit {metrics.train_commitment:.4f}"
+            + (
+                f" val recon {metrics.val_loss:.4f}"
+                if metrics.val_loss is not None
+                else ""
+            )
             + f" perplexity {metrics.perplexity:.1f}"
             f" active {metrics.num_active}/{config.model.num_codes}"
             + (f" restarted {metrics.num_restarted}" if metrics.num_restarted else "")
