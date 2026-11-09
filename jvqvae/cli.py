@@ -10,14 +10,21 @@ from jvqvae.data.sources.k49 import download_k49, load_k49
 def _fetch_k49(args: argparse.Namespace) -> int:
     directory = download_k49(args.dest)
     data = load_k49(directory, split="train", max_per_class=10)
-    print(f"ready: {len(data)} sampled images, {data.num_classes} classes")
+    print(
+        f"ready: {directory}, verified by loading {len(data)} images "
+        f"across {data.num_classes} classes"
+    )
     return 0
 
 
 def _ingest_etl4(args: argparse.Namespace) -> int:
     config = load_data_config(args.config)
     if config.etl4_zip is None:
-        raise SystemExit(f"{args.config} does not set etl4_zip")
+        raise SystemExit(
+            f"{args.config} does not set etl4_zip. Add a line such as "
+            "'etl4_zip: data/raw/ETL4.zip' pointing at the archive you "
+            "downloaded from AIST."
+        )
 
     cache = f"{config.cache_dir}/etl4_{config.image_size}.npz"
     data = ingest_etl4(
