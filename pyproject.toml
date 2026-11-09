@@ -11,6 +11,9 @@ dependencies = [
     "matplotlib>=3.8",
 ]
 
+[project.scripts]
+jvqvae = "jvqvae.cli:main"
+
 [dependency-groups]
 dev = ["pytest>=8.0"]
 
