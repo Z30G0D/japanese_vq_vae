@@ -2,7 +2,7 @@
 name = "jvqvae"
 version = "0.1.0"
 description = "VQ-VAE with a class-conditional transformer prior for handwritten Japanese characters"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "torch>=2.4",
     "numpy>=1.26",

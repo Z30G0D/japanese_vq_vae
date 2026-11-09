@@ -28,8 +28,8 @@ def test_ingest_reports_the_configured_defaults(monkeypatch, tmp_path):
     monkeypatch.setattr("jvqvae.cli.ingest_etl4", fake_ingest)
     config = tmp_path / "etl4.yaml"
     config.write_text(
-        "source: etl4\nimage_size: 64\n"
-        f"cache_dir: {tmp_path}\netl4_zip: {tmp_path}/ETL4.zip\n"
+        "data:\n  source: etl4\n  image_size: 64\n"
+        f"  cache_dir: {tmp_path}\n  etl4_zip: {tmp_path}/ETL4.zip\n"
     )
 
     with pytest.raises(SystemExit):
@@ -50,8 +50,8 @@ def test_no_verify_and_lenient_turn_the_checks_off(monkeypatch, tmp_path):
     monkeypatch.setattr("jvqvae.cli.ingest_etl4", fake_ingest)
     config = tmp_path / "etl4.yaml"
     config.write_text(
-        "source: etl4\nimage_size: 64\n"
-        f"cache_dir: {tmp_path}\netl4_zip: {tmp_path}/ETL4.zip\n"
+        "data:\n  source: etl4\n  image_size: 64\n"
+        f"  cache_dir: {tmp_path}\n  etl4_zip: {tmp_path}/ETL4.zip\n"
     )
 
     with pytest.raises(SystemExit):
@@ -63,7 +63,7 @@ def test_no_verify_and_lenient_turn_the_checks_off(monkeypatch, tmp_path):
 
 def test_a_config_without_a_zip_path_says_what_to_add(tmp_path):
     config = tmp_path / "etl4.yaml"
-    config.write_text("source: etl4\nimage_size: 64\n")
+    config.write_text("data:\n  source: etl4\n  image_size: 64\n")
 
     with pytest.raises(SystemExit, match="etl4_zip: data/raw/ETL4.zip"):
         main(["ingest-etl4", "--config", str(config)])

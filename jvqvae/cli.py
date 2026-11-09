@@ -2,7 +2,7 @@
 
 import argparse
 
-from jvqvae.config import load_data_config
+from jvqvae.config import load_run_config
 from jvqvae.data.sources.etl4 import ingest_etl4
 from jvqvae.data.sources.k49 import download_k49, load_k49
 
@@ -18,12 +18,12 @@ def _fetch_k49(args: argparse.Namespace) -> int:
 
 
 def _ingest_etl4(args: argparse.Namespace) -> int:
-    config = load_data_config(args.config)
+    config = load_run_config(args.config).data
     if config.etl4_zip is None:
         raise SystemExit(
-            f"{args.config} does not set etl4_zip. Add a line such as "
-            "'etl4_zip: data/raw/ETL4.zip' pointing at the archive you "
-            "downloaded from AIST."
+            f"{args.config} does not set data.etl4_zip. Add a line such as "
+            "'etl4_zip: data/raw/ETL4.zip' under the 'data:' section, pointing "
+            "at the archive you downloaded from AIST."
         )
 
     cache = f"{config.cache_dir}/etl4_{config.image_size}.npz"

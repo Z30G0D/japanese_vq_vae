@@ -1,7 +1,17 @@
-source: etl4
-image_size: 64
-etl4_zip: data/raw/ETL4.zip
-split:
-  seed: 0
-  val_writers: 12
-  test_writers: 12
+name: etl4
+data:
+  source: etl4
+  image_size: 64
+  etl4_zip: data/raw/ETL4.zip
+  split:
+    seed: 0
+    val_writers: 12
+    test_writers: 12
+model:
+  num_codes: 512
+  embedding_dim: 64
+  num_downsample: 3
+train:
+  epochs: 50
+  batch_size: 64
+  learning_rate: 0.0003

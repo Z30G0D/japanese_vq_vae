@@ -56,11 +56,11 @@ integer class id:
 ```python
 from torch.utils.data import DataLoader
 
-from jvqvae.config import load_data_config
+from jvqvae.config import load_run_config
 from jvqvae.data.pipeline import load_splits
 from jvqvae.data.torch_dataset import CharacterTorchDataset
 
-splits = load_splits(load_data_config("configs/etl4.yaml"))
+splits = load_splits(load_run_config("configs/etl4.yaml").data)
 loader = DataLoader(CharacterTorchDataset(splits["train"]), batch_size=32, shuffle=True)
 ```
 
