@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from jvqvae.config import DataConfig, RunConfig, TrainConfig, VQVAEConfig
+from jvqvae.config import DataConfig, PriorConfig, RunConfig, TrainConfig, VQVAEConfig
 from jvqvae.data.dataset import CharacterData
 
 
@@ -25,6 +25,9 @@ def tiny_config():
             dead_code_steps=0,
         ),
         train=TrainConfig(epochs=1, batch_size=4, max_steps=2),
+        prior=PriorConfig(
+            num_layers=1, num_heads=2, width=16, epochs=1, batch_size=4, max_steps=2
+        ),
     )
 
 

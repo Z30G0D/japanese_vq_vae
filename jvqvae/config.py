@@ -119,6 +119,67 @@ class VQVAEConfig:
 
 
 @dataclass(frozen=True)
+class PriorConfig:
+    """Transformer that models code indices conditioned on the class label.
+
+    Epochs, batch size, learning rate and ``max_steps`` live here, not on
+    ``TrainConfig``, so the VQ-VAE and the prior can disagree in one file.
+    Seed, device and output directories stay shared on ``TrainConfig``.
+    """
+
+    num_layers: int = 4
+    num_heads: int = 4
+    width: int = 256
+    label_dropout: float = 0.1
+    temperature: float = 1.0
+    top_p: float = 0.9
+    guidance_scale: float = 1.5
+    epochs: int = 30
+    batch_size: int = 64
+    learning_rate: float = 3e-4
+    max_steps: int | None = None
+
+    def __post_init__(self) -> None:
+        positive = {
+            "num_layers": self.num_layers,
+            "num_heads": self.num_heads,
+            "width": self.width,
+            "epochs": self.epochs,
+            "batch_size": self.batch_size,
+        }
+        for name, value in positive.items():
+            if value < 1:
+                raise ValueError(f"{name} must be positive, got {value}")
+        if self.learning_rate <= 0:
+            raise ValueError(
+                f"learning_rate must be positive, got {self.learning_rate}"
+            )
+        if self.max_steps is not None and self.max_steps < 1:
+            raise ValueError(
+                f"max_steps must be positive when set, got {self.max_steps}"
+            )
+        if not 0.0 <= self.label_dropout <= 1.0:
+            raise ValueError(
+                f"label_dropout must be in [0, 1], got {self.label_dropout}"
+            )
+        if not 0.0 <= self.top_p <= 1.0:
+            raise ValueError(f"top_p must be in [0, 1], got {self.top_p}")
+        if self.temperature <= 0:
+            raise ValueError(
+                f"temperature must be positive, got {self.temperature}"
+            )
+        if self.guidance_scale <= 0:
+            raise ValueError(
+                f"guidance_scale must be positive, got {self.guidance_scale}"
+            )
+        if self.width % self.num_heads:
+            raise ValueError(
+                f"width {self.width} is not divisible by "
+                f"num_heads {self.num_heads}"
+            )
+
+
+@dataclass(frozen=True)
 class TrainConfig:
     """Optimization settings.
 
@@ -158,6 +219,7 @@ class RunConfig:
     data: DataConfig
     model: VQVAEConfig = field(default_factory=VQVAEConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
+    prior: PriorConfig = field(default_factory=PriorConfig)
 
     def __post_init__(self) -> None:
         stride = 2**self.model.num_downsample
@@ -199,7 +261,7 @@ def _build(cls: type, raw: Any, *, where: str) -> Any:
         raise ValueError(f"{where}: invalid {cls.__name__}: {error}") from error
 
 
-_SECTIONS = ("name", "data", "model", "train")
+_SECTIONS = ("name", "data", "model", "train", "prior")
 
 
 def _build_data_config(raw: Any, *, where: str) -> DataConfig:
@@ -256,6 +318,7 @@ def load_run_config(path: str | Path) -> RunConfig:
             data=_build_data_config(raw["data"], where=f"{path}:data"),
             model=_build(VQVAEConfig, section("model"), where=f"{path}:model"),
             train=_build(TrainConfig, section("train"), where=f"{path}:train"),
+            prior=_build(PriorConfig, section("prior"), where=f"{path}:prior"),
         )
     except ValueError as error:
         # Cross-section errors come from RunConfig.__post_init__, which runs

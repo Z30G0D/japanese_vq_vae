@@ -6,6 +6,7 @@ import pytest
 
 from jvqvae.config import (
     DataConfig,
+    PriorConfig,
     RunConfig,
     SplitConfig,
     TrainConfig,
@@ -34,6 +35,13 @@ def test_defaults_fill_in_every_section(tmp_path):
     assert config.train.epochs == 50
     assert config.data.split.seed == 0
     assert config.name == "run"
+    assert config.prior.num_layers == 4
+    assert config.prior.num_heads == 4
+    assert config.prior.width == 256
+    assert config.prior.label_dropout == 0.1
+    assert config.prior.top_p == 0.9
+    assert config.prior.guidance_scale == 1.5
+    assert config.prior.epochs == 30
 
 
 def test_sections_override_defaults(tmp_path):
@@ -43,7 +51,8 @@ def test_sections_override_defaults(tmp_path):
             "name: experiment\n"
             "data:\n  source: k49\n  image_size: 32\n"
             "model:\n  num_codes: 64\n  num_downsample: 2\n"
-            "train:\n  epochs: 3\n  batch_size: 8\n",
+            "train:\n  epochs: 3\n  batch_size: 8\n"
+            "prior:\n  num_layers: 2\n  epochs: 5\n",
         )
     )
 
@@ -52,6 +61,8 @@ def test_sections_override_defaults(tmp_path):
     assert config.train.epochs == 3
     assert config.train.batch_size == 8
     assert config.train.learning_rate == 3e-4
+    assert config.prior.num_layers == 2
+    assert config.prior.epochs == 5
 
 
 def test_latent_size_follows_image_size_and_downsampling(tmp_path):
@@ -71,8 +82,8 @@ def test_a_missing_data_section_is_rejected(tmp_path):
 
 
 def test_unknown_top_level_sections_are_rejected(tmp_path):
-    with pytest.raises(ValueError, match="prior"):
-        load_run_config(write(tmp_path, MINIMAL + "prior:\n  layers: 4\n"))
+    with pytest.raises(ValueError, match="optim"):
+        load_run_config(write(tmp_path, MINIMAL + "optim:\n  lr: 0.1\n"))
 
 
 def test_unknown_keys_inside_a_section_are_rejected(tmp_path):
@@ -120,6 +131,14 @@ def test_an_image_size_that_does_not_reach_the_grid_is_rejected(tmp_path):
         ("train", "train:\n  batch_size: 0\n"),
         ("train", "train:\n  learning_rate: 0\n"),
         ("train", "train:\n  max_steps: 0\n"),
+        ("prior", "prior:\n  num_layers: 0\n"),
+        ("prior", "prior:\n  num_heads: 0\n"),
+        ("prior", "prior:\n  width: 0\n"),
+        ("prior", "prior:\n  label_dropout: 1.5\n"),
+        ("prior", "prior:\n  top_p: -0.1\n"),
+        ("prior", "prior:\n  temperature: 0\n"),
+        ("prior", "prior:\n  guidance_scale: 0\n"),
+        ("prior", "prior:\n  epochs: 0\n"),
     ],
 )
 def test_out_of_range_scalars_are_rejected(tmp_path, section, text):
@@ -201,6 +220,7 @@ def test_a_non_string_name_is_rejected(tmp_path):
         DataConfig(source="k49", image_size=32),
         VQVAEConfig(),
         TrainConfig(),
+        PriorConfig(),
         SplitConfig(),
     ],
 )
@@ -221,6 +241,7 @@ def test_shipped_configs_load_and_reach_an_eight_by_eight_grid(name):
     assert isinstance(config.data, DataConfig)
     assert isinstance(config.model, VQVAEConfig)
     assert isinstance(config.train, TrainConfig)
+    assert isinstance(config.prior, PriorConfig)
 
 
 def test_the_etl4_config_holds_the_ninety_six_twelve_twelve_split():
@@ -242,6 +263,16 @@ def test_the_k49_config_keeps_its_subsampling():
     config = load_run_config(REPO_ROOT / "configs" / "k49_dev.yaml")
     assert config.data.k49_dir == "data/k49"
     assert config.data.k49_max_per_class == 500
+
+
+def test_num_heads_must_divide_width():
+    with pytest.raises(ValueError, match="divisible"):
+        PriorConfig(num_heads=3, width=256)
+
+
+def test_run_config_default_prior_is_the_spec_transformer():
+    config = RunConfig(name="x", data=DataConfig(source="k49", image_size=32))
+    assert config.prior == PriorConfig()
 
 
 def test_run_config_can_be_built_directly():

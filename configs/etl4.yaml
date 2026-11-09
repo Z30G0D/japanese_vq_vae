@@ -15,3 +15,15 @@ train:
   epochs: 50
   batch_size: 64
   learning_rate: 0.0003
+prior:
+  num_layers: 4
+  num_heads: 4
+  width: 256
+  label_dropout: 0.1
+  temperature: 1.0
+  top_p: 0.9
+  guidance_scale: 1.5
+  epochs: 30
+  batch_size: 64
+  learning_rate: 0.0003
+  max_steps: null
