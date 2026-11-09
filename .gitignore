@@ -6,7 +6,7 @@ __pycache__/
 *.egg-info/
 
 # Never commit datasets. ETL4 redistribution is prohibited by AIST's terms.
-data/
-results/
-checkpoints/
+/data/
+/results/
+/checkpoints/
 .ipynb_checkpoints/
