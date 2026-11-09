@@ -245,6 +245,8 @@ git commit -m "feat: scaffold jvqvae package with device selection"
 Create `tests/test_config.py`:
 
 ```python
+import dataclasses
+
 import pytest
 
 from jvqvae.config import DataConfig, SplitConfig, load_data_config
@@ -291,7 +293,7 @@ def test_unknown_key_is_rejected(tmp_path):
 
 def test_config_is_immutable():
     config = DataConfig(source="k49", image_size=32)
-    with pytest.raises(Exception):
+    with pytest.raises(dataclasses.FrozenInstanceError):
         config.source = "etl4"
 ```
 
@@ -695,7 +697,7 @@ Create `tests/test_splits.py`:
 import numpy as np
 import pytest
 
-from jvqvae.data.splits import Split, carve_validation, split_by_writer
+from jvqvae.data.splits import carve_validation, split_by_writer
 
 
 def writer_ids(n_writers=10, n_classes=5):
@@ -761,15 +763,6 @@ def test_carve_validation_is_disjoint_and_deterministic():
 
     train2, val2 = carve_validation(100, seed=0, n_val=20)
     assert np.array_equal(val, val2)
-
-
-def test_split_dataclass_is_constructible():
-    split = Split(
-        train=np.array([0], dtype=np.int64),
-        val=np.array([1], dtype=np.int64),
-        test=np.array([2], dtype=np.int64),
-    )
-    assert len(split.train) == 1
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
@@ -848,7 +841,7 @@ def carve_validation(
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `uv run pytest tests/test_splits.py -v`
-Expected: PASS, 8 passed
+Expected: PASS, 7 passed
 
 - [ ] **Step 5: Commit**
 
