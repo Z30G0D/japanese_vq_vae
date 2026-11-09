@@ -2,7 +2,13 @@ import numpy as np
 import pytest
 import torch
 
-from jvqvae.codes import CodeData, extract_codes, load_codes, save_codes
+from jvqvae.codes import (
+    CodeData,
+    CodeTorchDataset,
+    extract_codes,
+    load_codes,
+    save_codes,
+)
 from jvqvae.models.vqvae import VQVAE
 
 CPU = torch.device("cpu")
@@ -107,6 +113,40 @@ def test_extraction_from_an_empty_dataset_keeps_the_grid_size(tiny_config, tiny_
 
     assert codes.codes.shape == (0, 4, 4)
     assert codes.latent_size == 4
+
+
+def _ordered_codes() -> CodeData:
+    codes = np.arange(2 * 4 * 4, dtype=np.int64).reshape(2, 4, 4) % 8
+    return CodeData(
+        codes=codes,
+        class_ids=np.array([2, 0], dtype=np.int64),
+        classes=["あ", "い", "う"],
+        num_codes=8,
+    )
+
+
+def test_code_dataset_yields_a_grid_and_a_class_id():
+    data = _ordered_codes()
+    dataset = CodeTorchDataset(data)
+    codes, class_id = dataset[0]
+
+    assert len(dataset) == len(data)
+    assert isinstance(codes, torch.Tensor)
+    assert isinstance(class_id, torch.Tensor)
+    assert codes.shape == (4, 4)
+    assert codes.dtype == torch.int64
+    assert class_id.dtype == torch.int64
+    assert class_id.shape == ()
+
+
+def test_code_dataset_preserves_order():
+    data = _ordered_codes()
+    dataset = CodeTorchDataset(data)
+
+    for index in range(len(data)):
+        codes, class_id = dataset[index]
+        assert torch.equal(codes, torch.from_numpy(data.codes[index]))
+        assert class_id.item() == int(data.class_ids[index])
 
 
 def test_code_data_rejects_a_non_square_grid():

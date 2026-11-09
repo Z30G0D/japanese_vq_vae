@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from torch.utils.data import Dataset
 
 from jvqvae.data.dataset import CharacterData
 from jvqvae.models.vqvae import VQVAE
@@ -59,6 +60,24 @@ class CodeData:
     def sequence_length(self) -> int:
         """Tokens per image once the grid is flattened in raster order."""
         return self.codes.shape[1] * self.codes.shape[2]
+
+
+class CodeTorchDataset(Dataset):
+    """Tensor view of a :class:`CodeData` split.
+
+    Each item is a code grid ``(G, G)`` int64 and a scalar class id int64.
+    """
+
+    def __init__(self, data: CodeData) -> None:
+        self._data = data
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
+        codes = torch.tensor(self._data.codes[index], dtype=torch.int64)
+        class_id = torch.tensor(int(self._data.class_ids[index]), dtype=torch.int64)
+        return codes, class_id
 
 
 @torch.no_grad()
