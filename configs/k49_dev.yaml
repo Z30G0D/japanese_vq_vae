@@ -1,0 +1,6 @@
+source: k49
+image_size: 32
+k49_dir: data/k49
+k49_max_per_class: 500
+split:
+  seed: 0
