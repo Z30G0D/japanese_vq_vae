@@ -6,7 +6,9 @@ import torch
 from jvqvae.config import PriorConfig
 from jvqvae.models.prior import (
     Prior,
+    apply_guidance,
     load_prior_checkpoint,
+    nucleus,
     save_prior_checkpoint,
 )
 
@@ -206,3 +208,53 @@ def test_loading_a_checkpoint_does_not_unpickle_arbitrary_objects(
 def test_positional_misuse_is_rejected(tiny_config):
     with pytest.raises(TypeError):
         Prior(tiny_config.prior, 8, 3, 4)
+
+
+def test_nucleus_is_a_noop_at_top_p_one():
+    logits = torch.tensor([[1.0, 2.0, 3.0]])
+    assert torch.equal(nucleus(logits, 1.0), logits)
+
+
+def test_nucleus_zeros_out_the_tail_below_top_p():
+    logits = torch.tensor([[0.0, 0.0, 10.0]])
+    filtered = nucleus(logits, 0.5)
+    assert torch.isneginf(filtered[0, 0])
+    assert torch.isneginf(filtered[0, 1])
+    assert filtered[0, 2] == logits[0, 2]
+
+
+def test_guidance_scale_one_matches_conditional():
+    cond, uncond = torch.randn(2, 5), torch.randn(2, 5)
+    assert torch.allclose(apply_guidance(cond, uncond, 1.0), cond)
+
+
+def test_guidance_scale_zero_matches_unconditional():
+    cond, uncond = torch.randn(2, 5), torch.randn(2, 5)
+    assert torch.allclose(apply_guidance(cond, uncond, 0.0), uncond)
+
+
+def test_generate_returns_a_grid_of_codebook_indices(tiny_config):
+    prior = make_prior(tiny_config).eval()
+    codes = prior.generate(torch.tensor([0, 1, 2]), temperature=1.0, top_p=1.0, guidance_scale=1.0)
+    assert codes.shape == (3, 4, 4)
+    assert codes.dtype == torch.int64
+    assert int(codes.min()) >= 0
+    assert int(codes.max()) < tiny_config.model.num_codes
+
+
+def test_generate_is_deterministic_under_a_fixed_seed(tiny_config):
+    prior = make_prior(tiny_config).eval()
+    class_ids = torch.tensor([0, 1])
+    torch.manual_seed(0)
+    first = prior.generate(class_ids, temperature=1.0, top_p=1.0, guidance_scale=1.0)
+    torch.manual_seed(0)
+    second = prior.generate(class_ids, temperature=1.0, top_p=1.0, guidance_scale=1.0)
+    assert torch.equal(first, second)
+
+
+def test_generate_does_not_update_parameters(tiny_config):
+    prior = make_prior(tiny_config).train()
+    before = {n: p.detach().clone() for n, p in prior.named_parameters()}
+    prior.generate(torch.tensor([0]), temperature=1.0, top_p=1.0, guidance_scale=1.0)
+    for name, param in prior.named_parameters():
+        assert torch.equal(param, before[name])

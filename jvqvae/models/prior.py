@@ -8,6 +8,10 @@ codebook indices only: never the class and never the start token.
 The causal mask is a registered buffer of ``-inf`` above the diagonal and is
 added inside attention. It is not an ``is_causal`` flag on a library module,
 because dropping that flag would still train and then sample garbage.
+
+Sampling walks that same sequence from ``[class, BOS]``. Each new code is drawn
+from the last-position logits after classifier-free guidance, temperature, and
+nucleus filtering.
 """
 
 from dataclasses import asdict, dataclass
@@ -131,11 +135,68 @@ class Prior(nn.Module):
         if dropout_labels:
             class_ids = self._drop_labels(class_ids)
 
-        hidden = self._embed(codes, class_ids)
-        for block in self.blocks:
-            hidden = block(hidden, self.causal_mask)
-        logits = self.head(hidden)
+        flat = codes.reshape(codes.shape[0], -1)
+        logits = self._logits(flat, class_ids)
         return PriorOutput(logits=logits, loss=self._token_loss(logits, codes))
+
+    @torch.no_grad()
+    def generate(
+        self,
+        class_ids: torch.Tensor,
+        *,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        guidance_scale: float | None = None,
+    ) -> torch.Tensor:
+        """Sample one ``(batch, grid, grid)`` code grid for ``class_ids``.
+
+        ``None`` uses the matching field on ``self.config``. The module is
+        switched to eval for the draw and the previous training flag is
+        restored, so a prior left in train mode does not update.
+        """
+        if temperature is None:
+            temperature = self.config.temperature
+        if top_p is None:
+            top_p = self.config.top_p
+        if guidance_scale is None:
+            guidance_scale = self.config.guidance_scale
+
+        was_training = self.training
+        self.eval()
+        try:
+            batch = class_ids.shape[0]
+            grid = self.latent_size
+            num_positions = grid * grid
+            device = class_ids.device
+            flat = torch.empty(batch, num_positions, dtype=torch.long, device=device)
+            uncond_ids = torch.full(
+                (batch,), self.uncond_id, dtype=torch.long, device=device
+            )
+            for step in range(num_positions):
+                prefix = flat[:, :step]
+                paired_ids = torch.cat((class_ids, uncond_ids))
+                last = self._logits(prefix.repeat(2, 1), paired_ids)[:, -1, :]
+                guided = apply_guidance(last[:batch], last[batch:], guidance_scale)
+                filtered = nucleus(guided / temperature, top_p)
+                drawn = torch.multinomial(filtered.softmax(dim=-1), num_samples=1)
+                flat[:, step] = drawn.squeeze(1)
+            return flat.view(batch, grid, grid)
+        finally:
+            self.train(was_training)
+
+    def _logits(self, flat_codes: torch.Tensor, class_ids: torch.Tensor) -> torch.Tensor:
+        """Logits for a raster prefix, using the same layout as ``forward``.
+
+        ``flat_codes`` is ``(batch, length)`` with ``length`` from 0 through
+        ``N``. The embedded sequence is the class token, the start token, then
+        that prefix. A full grid is the prefix of length ``N``.
+        """
+        hidden = self._embed_prefix(flat_codes, class_ids)
+        length = hidden.shape[1]
+        mask = self.causal_mask[:length, :length]
+        for block in self.blocks:
+            hidden = block(hidden, mask)
+        return self.head(hidden)
 
     def _check_inputs(
         self, codes: torch.Tensor, class_ids: torch.Tensor
@@ -189,25 +250,29 @@ class Prior(nn.Module):
         dropped[drop] = self.uncond_id
         return dropped
 
-    def _embed(self, codes: torch.Tensor, class_ids: torch.Tensor) -> torch.Tensor:
-        batch, grid, _ = codes.shape
-        flat = codes.reshape(batch, grid * grid)
-        positions = torch.arange(grid * grid, device=codes.device)
-        rows = torch.div(positions, grid, rounding_mode="floor")
-        cols = positions % grid
-        code_tokens = (
-            self.tok_embed(flat)
-            + self.row_embed(rows).unsqueeze(0)
-            + self.col_embed(cols).unsqueeze(0)
-        )
-
+    def _embed_prefix(
+        self, flat_codes: torch.Tensor, class_ids: torch.Tensor
+    ) -> torch.Tensor:
+        batch, length = flat_codes.shape
+        grid = self.latent_size
         class_token = self.class_embed(class_ids).unsqueeze(1) + self.class_pos
         bos = self.tok_embed(
             torch.full(
-                (batch, 1), self.bos_id, dtype=torch.long, device=codes.device
+                (batch, 1), self.bos_id, dtype=torch.long, device=flat_codes.device
             )
         )
         bos_token = bos + self.bos_pos
+        if length == 0:
+            return torch.cat((class_token, bos_token), dim=1)
+
+        positions = torch.arange(length, device=flat_codes.device)
+        rows = torch.div(positions, grid, rounding_mode="floor")
+        cols = positions % grid
+        code_tokens = (
+            self.tok_embed(flat_codes)
+            + self.row_embed(rows).unsqueeze(0)
+            + self.col_embed(cols).unsqueeze(0)
+        )
         return torch.cat((class_token, bos_token, code_tokens), dim=1)
 
     def _token_loss(self, logits: torch.Tensor, codes: torch.Tensor) -> torch.Tensor:
@@ -219,6 +284,33 @@ class Prior(nn.Module):
             predicted.reshape(-1, self.num_codes),
             codes.reshape(-1),
         )
+
+
+def nucleus(logits: torch.Tensor, top_p: float) -> torch.Tensor:
+    """Set logits outside the top-p nucleus to ``-inf``.
+
+    ``top_p >= 1`` returns ``logits`` unchanged. The result is still logits.
+    Softmax is only the probability mass used to choose the cutoff; the caller
+    that draws a token applies softmax itself.
+    """
+    if top_p >= 1:
+        return logits
+
+    sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
+    cumulative = torch.cumsum(sorted_logits.softmax(dim=-1), dim=-1)
+    # Drop tokens strictly past the first one whose cumulative mass exceeds top_p.
+    remove = cumulative > top_p
+    remove[..., 1:] = remove[..., :-1].clone()
+    remove[..., 0] = False
+    indices_to_remove = torch.zeros_like(remove).scatter(-1, sorted_indices, remove)
+    return logits.masked_fill(indices_to_remove, float("-inf"))
+
+
+def apply_guidance(
+    cond: torch.Tensor, uncond: torch.Tensor, scale: float
+) -> torch.Tensor:
+    """Classifier-free guidance: ``uncond + scale * (cond - uncond)``."""
+    return uncond + scale * (cond - uncond)
 
 
 def _init_weights(module: nn.Module) -> None:
