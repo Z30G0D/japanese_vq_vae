@@ -191,7 +191,11 @@ def _build(cls: type, raw: Any, *, where: str) -> Any:
 
     try:
         return cls(**raw)
-    except TypeError as error:
+    except (TypeError, ValueError) as error:
+        # TypeError covers a missing or misspelled argument; ValueError covers
+        # an out-of-range one raised by the dataclass's own __post_init__.
+        # Both need the file name attached, or the user is told a field is wrong
+        # without being told which file to go and fix.
         raise ValueError(f"{where}: invalid {cls.__name__}: {error}") from error
 
 
@@ -238,9 +242,24 @@ def load_run_config(path: str | Path) -> RunConfig:
         value = raw.get(name)
         return {} if value is None else value
 
-    return RunConfig(
-        name=raw.get("name") or path.stem,
-        data=_build_data_config(raw["data"], where=f"{path}:data"),
-        model=_build(VQVAEConfig, section("model"), where=f"{path}:model"),
-        train=_build(TrainConfig, section("train"), where=f"{path}:train"),
-    )
+    name = raw.get("name")
+    if name is None:
+        name = path.stem
+    elif not isinstance(name, str):
+        raise ValueError(
+            f"{path}: name must be a string, got {type(name).__name__}"
+        )
+
+    try:
+        return RunConfig(
+            name=name,
+            data=_build_data_config(raw["data"], where=f"{path}:data"),
+            model=_build(VQVAEConfig, section("model"), where=f"{path}:model"),
+            train=_build(TrainConfig, section("train"), where=f"{path}:train"),
+        )
+    except ValueError as error:
+        # Cross-section errors come from RunConfig.__post_init__, which runs
+        # outside _build and so would otherwise name no file at all.
+        if str(error).startswith(str(path)):
+            raise
+        raise ValueError(f"{path}: {error}") from error
