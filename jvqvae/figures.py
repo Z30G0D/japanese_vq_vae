@@ -36,6 +36,8 @@ def save_reconstruction_grid(
     model.eval().to(device)
 
     count = min(num_images, len(data))
+    if count < 1:
+        raise ValueError("cannot draw a reconstruction grid from an empty dataset")
     picks = np.random.default_rng(seed).choice(len(data), count, replace=False)
     picks.sort()
 
@@ -53,6 +55,9 @@ def save_reconstruction_grid(
             axis.imshow(image, cmap="gray", vmin=0.0, vmax=1.0)
             axis.set_xticks([])
             axis.set_yticks([])
+        # Class index, not the unicode glyph: a missing CJK font would warn
+        # on every test run, and the index is what a reader can look up.
+        axes[0][column].set_title(str(int(data.class_ids[picks[column]])), fontsize=9)
 
     axes[0][0].set_ylabel("original", fontsize=8)
     axes[1][0].set_ylabel("decoded", fontsize=8)

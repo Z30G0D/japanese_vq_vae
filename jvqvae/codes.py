@@ -74,18 +74,20 @@ def extract_codes(
     model.eval().to(device)
 
     grids = []
-    for start in range(0, len(data), batch_size):
-        images = data.images[start : start + batch_size]
-        tensor = torch.from_numpy(images).unsqueeze(1).to(device)
-        grids.append(model.encode(tensor).cpu().numpy())
+    try:
+        for start in range(0, len(data), batch_size):
+            images = data.images[start : start + batch_size]
+            tensor = torch.from_numpy(images).unsqueeze(1).to(device)
+            grids.append(model.encode(tensor).cpu().numpy())
+    finally:
+        if was_training:
+            model.train()
 
-    if was_training:
-        model.train()
-
+    grid = data.images.shape[1] // 2 ** model.config.num_downsample
     codes = (
         np.concatenate(grids).astype(np.int64)
         if grids
-        else np.zeros((0, 0, 0), dtype=np.int64)
+        else np.zeros((0, grid, grid), dtype=np.int64)
     )
     return CodeData(
         codes=codes,

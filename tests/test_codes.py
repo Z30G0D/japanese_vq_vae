@@ -101,6 +101,14 @@ def test_code_data_rejects_codes_outside_the_codebook():
         )
 
 
+def test_extraction_from_an_empty_dataset_keeps_the_grid_size(tiny_config, tiny_data):
+    empty = tiny_data.subset(np.arange(0))
+    codes = extract_codes(VQVAE(tiny_config.model), empty, device=CPU)
+
+    assert codes.codes.shape == (0, 4, 4)
+    assert codes.latent_size == 4
+
+
 def test_code_data_rejects_a_non_square_grid():
     with pytest.raises(ValueError, match="square"):
         CodeData(
