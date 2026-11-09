@@ -40,6 +40,25 @@ def test_nibble_order_is_high_then_low():
     assert decoded[0, 1] == 0x3
 
 
+def test_parses_hand_built_bytes_without_the_encoder():
+    """Pin the absolute byte layout, independent of `encode_record`.
+
+    The round-trip tests would pass even if the parser and encoder shared an
+    inverted nibble order, so this builds the record by hand: 9 pad bytes, the
+    character code, 206 pad bytes, then image data whose first byte is 0xA3.
+    """
+    raw = b"\x00" * 9 + b"\xb1" + b"\x00" * 206 + b"\xa3" + b"\x00" * 2735
+    assert len(raw) == RECORD_SIZE
+
+    code, image = parse_record(raw)
+
+    assert code == 0xB1
+    assert decode_hiragana(code) == "あ"
+    assert image[0, 0] == 0xA  # high nibble first
+    assert image[0, 1] == 0x3
+    assert image[0, 2] == 0x0
+
+
 def test_wrong_record_length_is_rejected():
     with pytest.raises(ValueError, match="2952"):
         parse_record(b"\x00" * 100)
@@ -55,6 +74,45 @@ def test_known_codes_decode_to_hiragana(code, expected):
 
 def test_non_kana_codes_return_none():
     assert decode_hiragana(0x41) is None
+
+
+@pytest.mark.parametrize(
+    ("code", "reason"),
+    [
+        (0x41, "below the kana range"),
+        (0xA1, "ideographic full stop"),
+        (0xA5, "katakana middle dot"),
+        (0xB0, "prolonged sound mark"),
+        (0xDE, "halfwidth voiced mark"),
+        (0xDF, "halfwidth semi-voiced mark"),
+        (0xE0, "above the kana range"),
+    ],
+)
+def test_non_hiragana_codes_return_none(code, reason):
+    assert decode_hiragana(code) is None, reason
+
+
+@pytest.mark.parametrize(("code", "expected"), [(0xA6, "を"), (0xDD, "ん")])
+def test_kana_range_endpoints_decode(code, expected):
+    assert decode_hiragana(code) == expected
+
+
+def test_encode_rejects_wrong_shape():
+    with pytest.raises(ValueError, match="image must be"):
+        encode_record(0xB1, np.zeros((10, 10), dtype=np.uint8))
+
+
+def test_encode_rejects_non_integer_dtype():
+    with pytest.raises(ValueError, match="integer dtype"):
+        encode_record(0xB1, np.zeros((HEIGHT, WIDTH), dtype=np.float32))
+
+
+@pytest.mark.parametrize("value", [-1, 16])
+def test_encode_rejects_out_of_range_pixels(value):
+    image = np.zeros((HEIGHT, WIDTH), dtype=np.int16)
+    image[0, 0] = value
+    with pytest.raises(ValueError, match="4 bits"):
+        encode_record(0xB1, image)
 
 
 def test_decoded_hiragana_are_distinct_across_the_kana_range():

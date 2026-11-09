@@ -47,12 +47,22 @@ def encode_record(char_code: int, image: np.ndarray) -> bytes:
     """Build a synthetic record. Used by tests while AIST is unreachable."""
     if image.shape != (HEIGHT, WIDTH):
         raise ValueError(f"image must be ({HEIGHT}, {WIDTH}), got {image.shape}")
-    if image.max(initial=0) > MAX_PIXEL_VALUE:
+    if not np.issubdtype(image.dtype, np.integer):
+        raise ValueError(f"image must have an integer dtype, got {image.dtype}")
+    if image.min(initial=0) < 0 or image.max(initial=0) > MAX_PIXEL_VALUE:
         raise ValueError("pixel values must fit in 4 bits")
+    if not 0 <= char_code <= 0xFF:
+        raise ValueError(f"char_code must be a single byte, got {char_code}")
 
     flat = image.reshape(-1).astype(np.uint8)
     packed = ((flat[0::2] << 4) | flat[1::2]).astype(np.uint8)
-    return b"\x00" * CHAR_CODE_OFFSET + bytes([char_code]) + b"\x00" * 206 + packed.tobytes()
+    padding = _IMAGE_OFFSET - CHAR_CODE_OFFSET - 1
+    return (
+        b"\x00" * CHAR_CODE_OFFSET
+        + bytes([char_code])
+        + b"\x00" * padding
+        + packed.tobytes()
+    )
 
 
 def decode_hiragana(char_code: int) -> str | None:
