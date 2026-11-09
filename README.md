@@ -74,10 +74,16 @@ silently random split.
 ## Attribution
 
 ETL4: Electrotechnical Laboratory, Japanese Technical Committee for Optical Character
-Recognition, ETL Character Database, 1973-1984.
+Recognition, ETL Character Database, 1973-1984. Redistribution is not permitted, so
+no ETL data appears in this repository.
 
 Kuzushiji-49: "KMNIST Dataset" (created by CODH), adapted from "Kuzushiji Dataset"
-(created by NIJL and others), doi:10.20676/00000341.
+(created by NIJL and others), doi:10.20676/00000341. Licensed CC BY-SA 4.0.
 
 ETL record layout and character set details were cross-checked against the
 MIT-licensed [choo/etlcdb-image-extractor](https://github.com/choo/etlcdb-image-extractor).
+
+## Licence
+
+The code in this repository is MIT licensed; see `LICENSE`. The datasets are not
+covered by it and carry their own terms, noted above.
