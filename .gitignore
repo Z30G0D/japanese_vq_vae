@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Never commit datasets. ETL4 redistribution is prohibited by AIST's terms.
+/data/
+/results/
+/checkpoints/
+.ipynb_checkpoints/
