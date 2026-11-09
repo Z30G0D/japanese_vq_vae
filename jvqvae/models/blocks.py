@@ -66,7 +66,13 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    """Mirror of the encoder, from a grid of embedding vectors to an image."""
+    """From a grid of embedding vectors back to an image.
+
+    Undoes the encoder's stride-2 stages in reverse, so the spatial sizes match
+    exactly. The channel widths are not a literal mirror: the taper holds at
+    half width for every stage but the last, rather than retracing the
+    encoder's widths backwards.
+    """
 
     def __init__(
         self,

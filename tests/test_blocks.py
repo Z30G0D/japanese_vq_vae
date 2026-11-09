@@ -78,3 +78,28 @@ def test_encoder_and_decoder_round_trip_the_shape():
 def test_positional_misuse_is_rejected():
     with pytest.raises(TypeError):
         Encoder(1, 16, 6, 3, 2, 4)
+
+
+def test_a_batch_of_one_behaves_like_a_batch_of_many():
+    """Pins the no-normalization claim: no cross-sample statistics anywhere.
+
+    Deliberately in train mode. A BatchNorm would normalize by the batch's own
+    statistics here, so one image alone would decode differently from the same
+    image inside a batch. In eval mode it would use running statistics and this
+    test would pass with a BatchNorm present, proving nothing.
+    """
+    shared = dict(num_downsample=2, num_residual_blocks=2, residual_hidden=4)
+    encoder = Encoder(1, hidden_channels=16, embedding_dim=6, **shared)
+    decoder = Decoder(6, hidden_channels=16, out_channels=1, **shared)
+
+    torch.manual_seed(0)
+    images = torch.rand(4, 1, 32, 32)
+
+    assert torch.allclose(encoder(images[:1]), encoder(images)[:1], atol=1e-6)
+    grid = encoder(images)
+    assert torch.allclose(decoder(grid[:1]), decoder(grid)[:1], atol=1e-6)
+
+
+def test_decoder_positional_misuse_is_rejected():
+    with pytest.raises(TypeError):
+        Decoder(6, 16, 1, 2, 2, 4)
