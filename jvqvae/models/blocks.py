@@ -105,9 +105,9 @@ class Decoder(nn.Module):
                 layers.append(nn.ReLU())
             channels = out
 
-        # Inputs are guaranteed to lie in [0, 1], so a bounded output means every
-        # reconstruction and every sample is a valid image without clipping.
-        layers.append(nn.Sigmoid())
+        # Linear last layer. A sigmoid saturates MSE: once logits go large and
+        # negative, sigmoid'(z) ~ 0 and the decoder cannot recover. Clip when
+        # drawing figures, not in the forward pass.
         self.net = nn.Sequential(*layers)
 
     def forward(self, grid: torch.Tensor) -> torch.Tensor:

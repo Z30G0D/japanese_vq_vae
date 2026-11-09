@@ -43,7 +43,9 @@ def save_reconstruction_grid(
 
     originals = data.images[picks]
     tensor = torch.from_numpy(originals).unsqueeze(1).to(device)
-    reconstructions = model(tensor).reconstruction.squeeze(1).cpu().numpy()
+    reconstructions = np.clip(
+        model(tensor).reconstruction.squeeze(1).cpu().numpy(), 0.0, 1.0
+    )
 
     if was_training:
         model.train()

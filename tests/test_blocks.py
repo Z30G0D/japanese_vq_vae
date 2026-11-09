@@ -52,7 +52,8 @@ def test_decoder_restores_the_image_size(grid, num_downsample):
     assert out.shape == (2, 1, expected, expected)
 
 
-def test_decoder_output_is_a_valid_image():
+def test_decoder_does_not_end_in_a_sigmoid():
+    """A sigmoid last layer saturates MSE: logits of -8 already give ~0 gradient."""
     decoder = Decoder(
         6,
         hidden_channels=16,
@@ -61,9 +62,9 @@ def test_decoder_output_is_a_valid_image():
         num_residual_blocks=1,
         residual_hidden=4,
     )
-    out = decoder(torch.randn(4, 6, 8, 8) * 10)
 
-    assert out.min() >= 0.0 and out.max() <= 1.0
+    assert not isinstance(decoder.net[-1], torch.nn.Sigmoid)
+    assert isinstance(decoder.net[-1], torch.nn.ConvTranspose2d)
 
 
 def test_encoder_and_decoder_round_trip_the_shape():

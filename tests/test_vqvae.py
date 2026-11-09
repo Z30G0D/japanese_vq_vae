@@ -15,14 +15,6 @@ def test_forward_returns_a_reconstruction_of_the_input_shape(tiny_config):
     assert out.codes.shape == (2, 4, 4)
 
 
-def test_reconstructions_are_valid_images(tiny_config):
-    model = VQVAE(tiny_config.model)
-    out = model(torch.rand(2, 1, 16, 16))
-
-    assert out.reconstruction.min() >= 0.0
-    assert out.reconstruction.max() <= 1.0
-
-
 def test_the_code_grid_matches_the_configured_latent_size(tiny_config):
     model = VQVAE(tiny_config.model)
     codes = model.encode(torch.rand(3, 1, 16, 16))
