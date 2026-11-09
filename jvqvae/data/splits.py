@@ -17,13 +17,19 @@ class Split:
 
 
 def split_by_writer(
-    writer_ids: np.ndarray,
+    writer_ids: np.ndarray | None,
     *,
     seed: int,
     n_val_writers: int,
     n_test_writers: int,
 ) -> Split:
     """Partition sample indices so that no writer spans two splits."""
+    if writer_ids is None:
+        raise ValueError(
+            "cannot split by writer: this source has no writer identities. "
+            "Use carve_validation for a random split instead."
+        )
+
     unique_writers = np.unique(writer_ids)
     held_out = n_val_writers + n_test_writers
     if len(unique_writers) <= held_out:

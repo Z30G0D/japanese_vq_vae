@@ -49,18 +49,27 @@ a habit: they exist to make a mismatch debuggable, not to paper over one.
 
 ## Using the data
 
-`CharacterTorchDataset` wraps the ingested arrays for a `DataLoader`, yielding a
-`(1, H, W)` float tensor and an integer class id:
+`load_splits` takes a config and returns train, val and test; `CharacterTorchDataset`
+wraps any of them for a `DataLoader`, yielding a `(1, H, W)` float tensor and an
+integer class id:
 
 ```python
 from torch.utils.data import DataLoader
 
-from jvqvae.data.sources.etl4 import load_cached_etl4
+from jvqvae.config import load_data_config
+from jvqvae.data.pipeline import load_splits
 from jvqvae.data.torch_dataset import CharacterTorchDataset
 
-data = load_cached_etl4("data/cache/etl4_64.npz")
-loader = DataLoader(CharacterTorchDataset(data), batch_size=32, shuffle=True)
+splits = load_splits(load_data_config("configs/etl4.yaml"))
+loader = DataLoader(CharacterTorchDataset(splits["train"]), batch_size=32, shuffle=True)
 ```
+
+How a source gets divided is decided in one place, by the source itself. ETL4 carries
+writer identities, so it is always split by writer: 96 writers train, 12 validate, 12
+test, and no hand appears in two splits. K49 has no writer identities and ships its
+own test set, so its validation set is carved at random out of the official train
+portion. Asking for a writer split on a source without writers is an error, not a
+silently random split.
 
 ## Attribution
 

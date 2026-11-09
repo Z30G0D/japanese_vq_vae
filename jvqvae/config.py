@@ -13,13 +13,41 @@ import yaml
 
 @dataclass(frozen=True)
 class SplitConfig:
+    """How to divide a source into train, validation and test.
+
+    ``val_writers`` and ``test_writers`` apply to sources that carry writer
+    identities; ``val_fraction`` is the fallback for sources that do not.
+    """
+
     seed: int = 0
     val_writers: int = 12
     test_writers: int = 12
+    val_fraction: float = 0.1
+
+    def __post_init__(self) -> None:
+        if self.val_writers < 0 or self.test_writers < 0:
+            raise ValueError(
+                f"writer counts must not be negative, got "
+                f"{self.val_writers} val and {self.test_writers} test"
+            )
+        if not 0.0 <= self.val_fraction < 1.0:
+            raise ValueError(
+                f"val_fraction must be in [0, 1), got {self.val_fraction}"
+            )
+
+
+SOURCES = ("etl4", "k49")
 
 
 @dataclass(frozen=True)
 class DataConfig:
+    """Which dataset to load and at what size.
+
+    ``image_size`` means different things per source, because the two differ in
+    native resolution: for ETL4 it is a bilinear resize target, while for K49 it
+    is a zero-pad canvas around the native 28x28 and so must be at least 28.
+    """
+
     source: str
     image_size: int
     cache_dir: str = "data/cache"
@@ -27,6 +55,19 @@ class DataConfig:
     k49_dir: str = "data/k49"
     k49_max_per_class: int | None = None
     split: SplitConfig = field(default_factory=SplitConfig)
+
+    def __post_init__(self) -> None:
+        if self.source not in SOURCES:
+            raise ValueError(
+                f"source must be one of {', '.join(SOURCES)}, got {self.source!r}"
+            )
+        if self.image_size < 1:
+            raise ValueError(f"image_size must be positive, got {self.image_size}")
+        if self.k49_max_per_class is not None and self.k49_max_per_class < 1:
+            raise ValueError(
+                f"k49_max_per_class must be positive when set, "
+                f"got {self.k49_max_per_class}"
+            )
 
 
 def _build(cls: type, raw: Any, *, where: str) -> Any:
