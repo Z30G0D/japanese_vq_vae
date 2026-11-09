@@ -68,3 +68,23 @@ def test_class_id_beyond_class_table_is_rejected():
             writer_ids=None,
             classes=["あ"],
         )
+
+
+def test_negative_class_ids_are_rejected():
+    with pytest.raises(ValueError, match="negative"):
+        CharacterData(
+            images=np.zeros((1, 4, 4), dtype=np.float32),
+            class_ids=np.array([-1], dtype=np.int64),
+            writer_ids=None,
+            classes=["あ"],
+        )
+
+
+def test_class_ids_must_be_int64():
+    with pytest.raises(ValueError, match="int64"):
+        CharacterData(
+            images=np.zeros((1, 4, 4), dtype=np.float32),
+            class_ids=np.array([0], dtype=np.int32),
+            writer_ids=None,
+            classes=["あ"],
+        )

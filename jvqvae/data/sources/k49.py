@@ -86,6 +86,10 @@ def load_k49(
     max_per_class: int | None = None,
     seed: int = 0,
 ) -> CharacterData:
+    """Load one official K49 split into a `CharacterData`.
+
+    K49 has no writer identities, so `writer_ids` is always None.
+    """
     if split not in {"train", "test"}:
         raise ValueError(f"split must be 'train' or 'test', got {split!r}")
 

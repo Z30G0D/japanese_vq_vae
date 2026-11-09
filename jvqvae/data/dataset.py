@@ -21,6 +21,16 @@ class CharacterData:
             raise ValueError(f"images must be (N, H, W), got {self.images.shape}")
         if self.images.dtype != np.float32:
             raise ValueError(f"images must be float32, got {self.images.dtype}")
+        for name, values in (
+            ("class_ids", self.class_ids),
+            ("writer_ids", self.writer_ids),
+        ):
+            if values is None:
+                continue
+            if values.ndim != 1:
+                raise ValueError(f"{name} must be 1-D, got {values.shape}")
+            if values.dtype != np.int64:
+                raise ValueError(f"{name} must be int64, got {values.dtype}")
         if len(self.class_ids) != len(self.images):
             raise ValueError(
                 f"length mismatch: {len(self.images)} images, "
@@ -38,11 +48,16 @@ class CharacterData:
                 f"images must lie in [0, 1], got "
                 f"[{self.images.min():.3f}, {self.images.max():.3f}]"
             )
-        if len(self.class_ids) and int(self.class_ids.max()) >= len(self.classes):
-            raise ValueError(
-                f"class id {int(self.class_ids.max())} exceeds class table of "
-                f"size {len(self.classes)}"
-            )
+        if len(self.class_ids):
+            if int(self.class_ids.min()) < 0:
+                raise ValueError(
+                    f"class ids must not be negative, got {int(self.class_ids.min())}"
+                )
+            if int(self.class_ids.max()) >= len(self.classes):
+                raise ValueError(
+                    f"class id {int(self.class_ids.max())} exceeds class table of "
+                    f"size {len(self.classes)}"
+                )
 
     def __len__(self) -> int:
         return len(self.images)

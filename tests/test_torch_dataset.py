@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import torch
 from torch.utils.data import DataLoader
 
@@ -39,3 +40,14 @@ def test_works_with_a_dataloader():
 
     assert images.shape == (4, 1, 8, 8)
     assert class_ids.shape == (4,)
+
+
+def test_out_of_range_indices_are_rejected():
+    data = CharacterData(
+        images=np.zeros((2, 4, 4), dtype=np.float32),
+        class_ids=np.zeros(2, dtype=np.int64),
+        writer_ids=None,
+        classes=["あ"],
+    )
+    with pytest.raises(ValueError, match="indices"):
+        CharacterTorchDataset(data, np.array([0, 5]))

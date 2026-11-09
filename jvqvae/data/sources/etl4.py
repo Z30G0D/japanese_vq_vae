@@ -24,6 +24,8 @@ from jvqvae.data.sources.etl4_records import (
 )
 from jvqvae.data.transforms import pad_to_square, resize
 
+# From AIST's download listing for ETL4. Re-confirm against the real archive the
+# first time ingestion runs against it.
 EXPECTED_ZIP_BYTES = 4_949_352
 EXPECTED_ZIP_MD5 = "cede897313b3617e364ddb17b8fad499"
 EXPECTED_RECORDS = 6120
