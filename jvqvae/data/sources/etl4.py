@@ -146,7 +146,9 @@ def ingest_etl4(
 
     with zipfile.ZipFile(zip_path) as archive:
         members = [name for name in archive.namelist() if not name.endswith("/")]
-        data_members = [name for name in members if "INFO" not in name.upper()]
+        data_members = [
+            name for name in members if "INFO" not in Path(name).name.upper()
+        ]
         if len(data_members) != 1:
             raise ValueError(
                 f"expected exactly one data member in {zip_path}, "
@@ -179,23 +181,33 @@ def ingest_etl4(
     return data
 
 
-def _save_cache(data: CharacterData, cache_path: str | Path) -> None:
+def _cache_path(cache_path: str | Path) -> Path:
+    """Apply the `.npz` suffix numpy would otherwise append behind our back."""
     path = Path(cache_path)
+    if path.suffix != ".npz":
+        path = path.with_suffix(path.suffix + ".npz")
+    return path
+
+
+def _save_cache(data: CharacterData, cache_path: str | Path) -> None:
+    path = _cache_path(cache_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(
-        path,
-        images=data.images,
-        class_ids=data.class_ids,
-        writer_ids=data.writer_ids,
-        classes=np.array(data.classes, dtype=object),
-    )
+    arrays = {
+        "images": data.images,
+        "class_ids": data.class_ids,
+        "classes": np.array(data.classes),
+    }
+    if data.writer_ids is not None:
+        arrays["writer_ids"] = data.writer_ids
+    np.savez_compressed(path, **arrays)
 
 
 def load_cached_etl4(cache_path: str | Path) -> CharacterData:
-    with np.load(cache_path, allow_pickle=True) as cached:
+    with np.load(_cache_path(cache_path)) as cached:
+        writer_ids = cached["writer_ids"] if "writer_ids" in cached else None
         return CharacterData(
             images=cached["images"],
             class_ids=cached["class_ids"],
-            writer_ids=cached["writer_ids"],
+            writer_ids=writer_ids,
             classes=[str(char) for char in cached["classes"]],
         )

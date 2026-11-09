@@ -4,9 +4,11 @@ import zipfile
 import numpy as np
 import pytest
 
+from jvqvae.data.dataset import CharacterData
 from jvqvae.data.sources.etl4 import (
     EXPECTED_ZIP_BYTES,
     EXPECTED_ZIP_MD5,
+    _save_cache,
     infer_writer_ids,
     ingest_etl4,
     load_cached_etl4,
@@ -121,6 +123,47 @@ def test_ingest_writes_a_reloadable_cache(fake_zip, tmp_path):
     assert np.array_equal(original.class_ids, reloaded.class_ids)
     assert np.array_equal(original.writer_ids, reloaded.writer_ids)
     assert original.classes == reloaded.classes
+
+
+def test_cache_round_trip_adds_the_npz_suffix(fake_zip, tmp_path):
+    original = ingest_etl4(fake_zip, tmp_path / "etl4", verify=False, strict=False)
+
+    assert (tmp_path / "etl4.npz").exists()
+    reloaded = load_cached_etl4(tmp_path / "etl4")
+    assert np.array_equal(original.images, reloaded.images)
+    assert original.classes == reloaded.classes
+
+
+def test_cache_round_trip_preserves_absent_writer_ids(tmp_path):
+    data = CharacterData(
+        images=np.zeros((2, 4, 4), dtype=np.float32),
+        class_ids=np.array([0, 1], dtype=np.int64),
+        writer_ids=None,
+        classes=["あ", "い"],
+    )
+    _save_cache(data, tmp_path / "nowriters.npz")
+
+    assert load_cached_etl4(tmp_path / "nowriters.npz").writer_ids is None
+
+
+def test_the_info_member_is_not_mistaken_for_data(tmp_path):
+    path = tmp_path / "ETL4.zip"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("ETL4/ETL4C", build_stream())
+        archive.writestr("ETL4/ETL4INFO", "writer metadata, not records")
+
+    data = ingest_etl4(path, tmp_path / "etl4.npz", verify=False, strict=False)
+    assert len(data) == N_CLASSES * N_WRITERS
+
+
+def test_an_ambiguous_archive_is_rejected(tmp_path):
+    path = tmp_path / "ETL4.zip"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("ETL4/ETL4C", build_stream())
+        archive.writestr("ETL4/ETL4C_copy", build_stream())
+
+    with pytest.raises(ValueError, match="exactly one data member"):
+        ingest_etl4(path, tmp_path / "etl4.npz", verify=False, strict=False)
 
 
 def test_strict_mode_rejects_a_short_archive(fake_zip, tmp_path):
