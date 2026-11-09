@@ -102,9 +102,10 @@ __pycache__/
 *.egg-info/
 
 # Never commit datasets. ETL4 redistribution is prohibited by AIST's terms.
-data/
-results/
-checkpoints/
+# Anchored to the repository root so `jvqvae/data/` (source) stays tracked.
+/data/
+/results/
+/checkpoints/
 .ipynb_checkpoints/
 ```
 
