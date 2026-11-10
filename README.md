@@ -4,14 +4,36 @@ A rebuild of a 2018 project that trained a convolutional VAE on ETL4 handwritten
 hiragana. This version uses a VQ-VAE with a class-conditional transformer prior, so
 you can ask for a specific character instead of sampling blindly.
 
-**Status: the data pipeline and the VQ-VAE are complete; the transformer prior is not
-written yet.** You can train the VQ-VAE and extract its codes today. There is no
-sampling command, because sampling needs the prior.
+**Status: Phase 1 on Kuzushiji-49 is complete.** The data pipeline, VQ-VAE, and
+class-conditional transformer prior all train and sample locally. ETL4 is still
+waiting on AIST's download site.
 
 Original write-up: [Computer made Japanese letters through Variational
 Autoencoder](https://medium.com/@tomernahshon/computer-made-japanese-letters-through-variational-autoencoder-2fdb5b6a0990)
 
 Design: `docs/superpowers/specs/2026-11-05-japanese-vq-vae-design.md`
+
+## Examples
+
+The 2018 panels are from that blog post: a convolutional VAE on ETL4 hiragana.
+The 2026 panels are a Kuzushiji-49 development run in this repo
+(`configs/k49_dev.yaml`, 500 images per class). The datasets are different —
+ETL4 is modern handwriting, K49 is kuzushiji — so this is a sequel, not a
+scoreboard.
+
+![2018 convolutional VAE versus 2026 VQ-VAE with a class-conditional prior](docs/figures/comparison.png)
+
+After training, the 2018 decoder could reconstruct a く, but sampling
+`z ~ N(0, I)` produced a blurry さ. The VQ-VAE reconstructions are sharp;
+new images come from the prior, so each sample row is a requested class.
+
+Full-size 2026 grids:
+[reconstructions](docs/figures/2026_vqvae_reconstructions.png),
+[samples](docs/figures/2026_vqvae_samples.png).
+2018 sources:
+[early reconstruction](docs/figures/2018_vae_reconstruction_early.jpeg),
+[late reconstruction](docs/figures/2018_vae_reconstruction_late.jpeg),
+[generated さ](docs/figures/2018_vae_generated_sa.jpeg).
 
 ## Setup
 
