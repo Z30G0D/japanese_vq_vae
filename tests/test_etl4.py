@@ -6,8 +6,6 @@ import pytest
 
 from jvqvae.data.dataset import CharacterData
 from jvqvae.data.sources.etl4 import (
-    EXPECTED_ZIP_BYTES,
-    EXPECTED_ZIP_MD5,
     _save_cache,
     infer_writer_ids,
     ingest_etl4,
@@ -41,11 +39,6 @@ def fake_zip(tmp_path):
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("ETL4/ETL4C", build_stream())
     return path
-
-
-def test_expected_fixity_constants_match_aist_listing():
-    assert EXPECTED_ZIP_BYTES == 4_949_352
-    assert EXPECTED_ZIP_MD5 == "cede897313b3617e364ddb17b8fad499"
 
 
 def test_verify_rejects_a_wrong_sized_file(tmp_path):

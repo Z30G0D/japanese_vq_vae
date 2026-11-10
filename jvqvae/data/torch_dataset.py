@@ -14,9 +14,14 @@ from jvqvae.data.dataset import CharacterData
 class CharacterTorchDataset(Dataset):
     def __init__(self, data: CharacterData, indices: np.ndarray | None = None) -> None:
         self._data = data
-        self._indices = (
-            np.arange(len(data), dtype=np.int64) if indices is None else indices
-        )
+        if indices is None:
+            indices = np.arange(len(data), dtype=np.int64)
+        elif len(indices) and (int(indices.min()) < 0 or int(indices.max()) >= len(data)):
+            raise ValueError(
+                f"indices must lie in [0, {len(data)}), got "
+                f"[{int(indices.min())}, {int(indices.max())}]"
+            )
+        self._indices = indices
 
     def __len__(self) -> int:
         return len(self._indices)
