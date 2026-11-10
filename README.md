@@ -102,7 +102,21 @@ uv run jvqvae extract-codes --config configs/k49_dev.yaml --split train
 
 A VQ-VAE cannot generate on its own. It learns a code for an image and how to decode
 one, but holds no distribution over code grids, so a grid sampled uniformly decodes to
-noise. Learning that distribution is the prior's job, and it is next.
+noise. Train the prior on those codes, then sample. Sampling needs both checkpoints:
+the prior draws a code grid and the VQ-VAE decodes it.
+
+```bash
+uv run jvqvae train-prior --config configs/k49_dev.yaml
+uv run jvqvae sample --config configs/k49_dev.yaml
+```
+
+`train-prior` reads `results/<name>/codes_train.npz` by default and writes
+`checkpoints/<name>/prior_best.pt` (and `prior_last.pt`) plus
+`results/<name>/prior_run.json`. It does not sample. `sample` reads
+`checkpoints/<name>/vqvae_best.pt` and `checkpoints/<name>/prior_best.pt` by
+default and writes `results/<name>/samples.png`. Omit `--class` to draw every
+class in the prior's class table; repeat `--class` to choose some. Add
+`--sweep-class <id>` to also write `results/<name>/guidance_sweep.png`.
 
 ## Attribution
 
